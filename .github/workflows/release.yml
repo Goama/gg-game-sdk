@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+        - prerelease
+      prerelease_id:
+        description: 'Pre-release identifier (alpha, beta, rc)'
+        required: false
+        default: 'alpha'
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run tests
+      run: npm test
+      
+    - name: Build package
+      run: npm run build
+      
+    - name: Configure Git
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        
+    - name: Bump version
+      id: version
+      run: |
+        if [ "${{ github.event.inputs.version_type }}" = "prerelease" ]; then
+          NEW_VERSION=$(npm version prerelease --preid=${{ github.event.inputs.prerelease_id }} --no-git-tag-version)
+        else
+          NEW_VERSION=$(npm version ${{ github.event.inputs.version_type }} --no-git-tag-version)
+        fi
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "version_tag=v${NEW_VERSION#v}" >> $GITHUB_OUTPUT
+        
+    - name: Update CHANGELOG
+      run: |
+        echo "## ${{ steps.version.outputs.new_version }} - $(date +'%Y-%m-%d')" >> CHANGELOG_NEW.md
+        echo "" >> CHANGELOG_NEW.md
+        echo "### Changes" >> CHANGELOG_NEW.md
+        echo "- Version bump to ${{ steps.version.outputs.new_version }}" >> CHANGELOG_NEW.md
+        echo "" >> CHANGELOG_NEW.md
+        if [ -f CHANGELOG.md ]; then
+          cat CHANGELOG.md >> CHANGELOG_NEW.md
+        fi
+        mv CHANGELOG_NEW.md CHANGELOG.md
+        
+    - name: Commit version bump
+      run: |
+        git add package.json package-lock.json CHANGELOG.md
+        git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }}"
+        git push origin main
+        
+    - name: Create Git tag
+      run: |
+        git tag ${{ steps.version.outputs.version_tag }}
+        git push origin ${{ steps.version.outputs.version_tag }}
+        
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+        echo "## What's Changed" >> $GITHUB_OUTPUT
+        echo "" >> $GITHUB_OUTPUT
+        echo "### Features & Improvements" >> $GITHUB_OUTPUT
+        echo "- Version ${{ steps.version.outputs.new_version }} release" >> $GITHUB_OUTPUT
+        echo "- Updated dependencies and build process" >> $GITHUB_OUTPUT
+        echo "" >> $GITHUB_OUTPUT
+        echo "### Installation" >> $GITHUB_OUTPUT
+        echo "\`\`\`bash" >> $GITHUB_OUTPUT
+        echo "npm install gg-game-sdk@${{ steps.version.outputs.new_version }}" >> $GITHUB_OUTPUT
+        echo "\`\`\`" >> $GITHUB_OUTPUT
+        echo "" >> $GITHUB_OUTPUT
+        echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/v$(git describe --tags --abbrev=0 HEAD^)...${{ steps.version.outputs.version_tag }}" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.version.outputs.version_tag }}
+        release_name: Release ${{ steps.version.outputs.version_tag }}
+        body: ${{ steps.release_notes.outputs.release_notes }}
+        draft: false
+        prerelease: ${{ github.event.inputs.version_type == 'prerelease' }}

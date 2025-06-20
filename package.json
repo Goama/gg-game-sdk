@@ -15,10 +15,14 @@
         "build:watch": "rollup -c -w",
         "test": "jest",
         "test:watch": "jest --watch",
+        "test:coverage": "jest --coverage",
         "lint": "eslint src --ext .js,.ts",
         "lint:fix": "eslint src --ext .js,.ts --fix",
         "prepublishOnly": "npm run build",
-        "dev": "rollup -c -w"
+        "dev": "rollup -c -w",
+        "release:patch": "npm version patch && git push && git push --tags",
+        "release:minor": "npm version minor && git push && git push --tags",
+        "release:major": "npm version major && git push && git push --tags"
     },
     "keywords": [
         "goama",
