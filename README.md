@@ -276,8 +276,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 
 For support and questions:
-- Create an issue on [GitHub Issues](https://github.com/yourusername/gg-game-sdk/issues)
-- Check the [documentation](https://github.com/yourusername/gg-game-sdk#readme)
+- Create an issue on [GitHub Issues](https://github.com/Goama/gg-game-sdk/issues)
+- Check the [documentation](https://github.com/Goama/gg-game-sdk#readme)
 
 ---
 
