@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [16.x, 18.x, 20.x]
+        node-version: [18.x, 20.x]
     
     steps:
     - name: Checkout code
@@ -33,14 +33,6 @@ jobs:
       
     - name: Run tests
       run: npm test
-      
-    - name: Upload coverage to Codecov
-      if: matrix.node-version == '18.x'
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage/lcov.info
-        flags: unittests
-        name: codecov-umbrella
 
   build:
     needs: test
