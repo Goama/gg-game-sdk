@@ -19,6 +19,11 @@ on:
         default: 'alpha'
         type: string
 
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -47,8 +52,8 @@ jobs:
       
     - name: Configure Git
       run: |
-        git config user.name "GitHub Actions Bot"
-        git config user.email "actions@github.com"
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         
     - name: Bump version
       id: version
@@ -103,12 +108,11 @@ jobs:
         echo "EOF" >> $GITHUB_OUTPUT
         
     - name: Create GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.version.outputs.version_tag }}
-        release_name: Release ${{ steps.version.outputs.version_tag }}
+        name: Release ${{ steps.version.outputs.version_tag }}
         body: ${{ steps.release_notes.outputs.release_notes }}
         draft: false
         prerelease: ${{ github.event.inputs.version_type == 'prerelease' }}
+        token: ${{ secrets.GITHUB_TOKEN }}
