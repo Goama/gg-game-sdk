@@ -33,6 +33,14 @@ jobs:
       
     - name: Run tests
       run: npm test
+      
+    # - name: Upload coverage to Codecov
+    #   if: matrix.node-version == '18.x'
+    #   uses: codecov/codecov-action@v4
+    #   with:
+    #     file: ./coverage/lcov.info
+    #     flags: unittests
+    #     name: codecov-umbrella
 
   build:
     needs: test
@@ -55,7 +63,7 @@ jobs:
       run: npm run build
       
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dist
         path: dist/
