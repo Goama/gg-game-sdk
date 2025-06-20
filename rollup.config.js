@@ -1,11 +1,11 @@
-import typescript from '@rollup/plugin-typescript';
-import { nodeResolve } from '@rollup/plugin-node-resolve';
-import { babel } from '@rollup/plugin-babel';
-import { terser } from '@rollup/plugin-terser';
+const typescript = require('@rollup/plugin-typescript');
+const { nodeResolve } = require('@rollup/plugin-node-resolve');
+const { babel } = require('@rollup/plugin-babel');
+const terser = require('@rollup/plugin-terser');
 
 const production = !process.env.ROLLUP_WATCH;
 
-export default [
+module.exports = [
   // ES Module build
   {
     input: 'src/index.ts',
@@ -20,6 +20,7 @@ export default [
         declaration: true,
         declarationDir: 'dist',
         rootDir: 'src',
+        importHelpers: false,
       }),
       production && terser(),
     ].filter(Boolean),
@@ -37,6 +38,7 @@ export default [
       nodeResolve(),
       typescript({
         declaration: false,
+        importHelpers: false,
       }),
       babel({
         babelHelpers: 'bundled',
@@ -69,6 +71,7 @@ export default [
       nodeResolve(),
       typescript({
         declaration: false,
+        importHelpers: false,
       }),
       babel({
         babelHelpers: 'bundled',
