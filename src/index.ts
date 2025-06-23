@@ -55,6 +55,31 @@ export class GGSDK {
     }
 
     /**
+ * Get the target window for communication
+ */
+    private getTargetWindow(): Window | null {
+        // Try window.top first (works in your case)
+        try {
+            if (window.top && window.top !== window) {
+                return window.top;
+            }
+        } catch (e) {
+            console.warn("window.top access failed:", (e as Error).message);
+        }
+
+        // Fallback to window.parent
+        try {
+            if (window.parent && window.parent !== window) {
+                return window.parent;
+            }
+        } catch (e) {
+            console.warn("window.parent access failed:", (e as Error).message);
+        }
+
+        return null;
+    }
+
+    /**
      * Get singleton instance
      */
     public static getInstance(): GGSDK {
@@ -78,25 +103,27 @@ export class GGSDK {
      * Register event listener
      */
     private registerListener(eventType: string, callback: EventCallback): void {
-      if (!window.parent) {
-        console.error("Functions should be called from inside an iframe");
-        return;
-      }
-  
-      const eventCallback = (e: MessageEvent) => {
-        if (e.data.event_type === eventType) {
-          callback();
+        const targetWindow = this.getTargetWindow();
+        if (!targetWindow) {
+            console.error("Functions should be called from inside an iframe");
+            return;
         }
-      };
-  
-      this.checkRegisteredListenersAndAdd(eventType, eventCallback);
+
+        const eventCallback = (e: MessageEvent) => {
+            if (e.data.event_type === eventType) {
+                callback();
+            }
+        };
+
+        this.checkRegisteredListenersAndAdd(eventType, eventCallback);
     }
 
     /**
      * Get game data from parent with fallback to default
      */
     public getGameData(defaultData: GameData, callback: GameDataCallback): void {
-        if (!window.parent) {
+        const targetWindow = this.getTargetWindow();
+        if (!targetWindow) {
             console.error("Functions should be called from inside an iframe");
             return;
         }
@@ -105,16 +132,16 @@ export class GGSDK {
             callback(defaultData);
         }, 3000);
 
-              const eventCallback = (event: MessageEvent) => {
-        if (event.data.event_type === EVENT_TYPES.GG_SET_GAME_DATA) {
-          clearTimeout(timeout);
-          callback(event.data.payload.gameData);
-        }
-      };
+        const eventCallback = (event: MessageEvent) => {
+            if (event.data.event_type === EVENT_TYPES.GG_SET_GAME_DATA) {
+                clearTimeout(timeout);
+                callback(event.data.payload.gameData);
+            }
+        };
 
         this.checkRegisteredListenersAndAdd(EVENT_TYPES.GG_SET_GAME_DATA, eventCallback);
 
-        window.parent.postMessage(
+        targetWindow.postMessage(
             {
                 event_type: EVENT_TYPES.GG_GET_GAME_DATA,
                 payload: { defaultData },
@@ -127,12 +154,13 @@ export class GGSDK {
      * Save game data to parent
      */
     public saveGameData(data: GameData): void {
-        if (!window.parent) {
+        const targetWindow = this.getTargetWindow();
+        if (!targetWindow) {
             console.error("Functions should be called from inside an iframe");
             return;
         }
 
-        window.parent.postMessage(
+        targetWindow.postMessage(
             {
                 event_type: EVENT_TYPES.GG_UPDATE_GAME_DATA,
                 payload: { data },
@@ -145,13 +173,14 @@ export class GGSDK {
      * Send game over event with score
      */
     public gameOver(score: number): void {
-        if (!window.parent) {
+        const targetWindow = this.getTargetWindow();
+        if (!targetWindow) {
             console.error("Functions should be called from inside an iframe");
             return;
         }
 
         console.log("sending game over to Goama", score);
-        window.parent.postMessage(
+        targetWindow.postMessage(
             {
                 event_type: EVENT_TYPES.GG_GAME_OVER,
                 payload: { score },
@@ -164,12 +193,13 @@ export class GGSDK {
      * Notify parent that game is paused
      */
     public gamePaused(): void {
-        if (!window.parent) {
+        const targetWindow = this.getTargetWindow();
+        if (!targetWindow) {
             console.error("Functions should be called from inside an iframe");
             return;
         }
 
-        window.parent.postMessage(
+        targetWindow.postMessage(
             {
                 event_type: EVENT_TYPES.GG_PAUSED_FROM_GAME,
             },
@@ -181,12 +211,13 @@ export class GGSDK {
      * Notify parent that game is resumed
      */
     public gameResumed(): void {
-        if (!window.parent) {
+        const targetWindow = this.getTargetWindow();
+        if (!targetWindow) {
             console.error("Functions should be called from inside an iframe");
             return;
         }
 
-        window.parent.postMessage(
+        targetWindow.postMessage(
             {
                 event_type: EVENT_TYPES.GG_RESUMED_FROM_GAME,
             },
@@ -198,12 +229,13 @@ export class GGSDK {
      * Notify parent that game has finished loading
      */
     public gameLoaded(): void {
-        if (!window.parent) {
+        const targetWindow = this.getTargetWindow();
+        if (!targetWindow) {
             console.error("Functions should be called from inside an iframe");
             return;
         }
 
-        window.parent.postMessage(
+        targetWindow.postMessage(
             {
                 event_type: EVENT_TYPES.GG_GAME_LOAD_FINISHED,
             },
