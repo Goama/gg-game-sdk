@@ -286,16 +286,18 @@ describe('with valid v2 params', () => {
         expect(message.payload.stats.keyCount).toBe(1);
     });
 
-    it('sends only the first game over per session', async () => {
+    it('sends a diary with the first game over per session, and later ones plain so the score still arrives', async () => {
         const parent = makeParent();
         const sdk = await load(v2Query(nextOrigin()));
         sdk.gameOver(10);
-        sdk.gameOver(99);
         await waitForGameOver(parent);
+        sdk.gameOver(99); // the game's own play again, before a new session arrived
         await new Promise((r) => setTimeout(r, 30));
         const overs = parent.postMessage.mock.calls.filter((c: any[]) => c[0].event_type === 'GG_GAME_OVER');
-        expect(overs).toHaveLength(1);
+        expect(overs).toHaveLength(2);
         expect(overs[0][0].payload.score).toBe(10);
+        expect(overs[0][0].payload.inputs).toBeDefined();
+        expect(overs[1][0].payload).toEqual({ score: 99 });
     });
 
     it('drops messages that are not from the parent at gg_origin', async () => {

@@ -233,10 +233,12 @@ export class GGSDK {
         }
 
         console.log("sending game over to Goama", score);
-        if (v2) {
+        if (v2 && !v2.ended) {
             v2.gameOver(score, 'game_over');
             return;
         }
+        // A second game over in one session (the game's own play again, before the platform's new session
+        // arrived) goes plain, as before v2: the score still reaches the platform, without a second diary.
         this.send({
             event_type: EVENT_TYPES.GG_GAME_OVER,
             payload: { score },
