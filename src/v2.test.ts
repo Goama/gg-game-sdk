@@ -6,9 +6,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
 import { mulberry32, gameplaySeed } from './v2/rng';
+import { float32Bits, NOT_READ, urlKey } from './v2/runtime';
 import { encodeInts, ENC_DEFLATE, ENC_PLAIN, toVarintBytes, toBase64, zz } from './v2/encode';
 import { parseOrigin, parseV2Params } from './v2/params';
-import { ROW, withoutMoves } from './v2/recorder';
+import { LOAD, ROW, withoutMoves } from './v2/recorder';
 
 const realRandom = Math.random;
 const SEED = 2918374651;
@@ -60,6 +61,20 @@ function pointer(target: EventTarget, type: string, clientX: number, clientY: nu
     Object.defineProperty(e, 'pointerType', { value: 'touch' });
     Object.defineProperty(e, 'isPrimary', { value: true });
     target.dispatchEvent(e);
+}
+
+/** Frames as the browser runs them: every callback gets the frame's timestamp, as requestAnimationFrame does. */
+function framesAt(times: number[]): void {
+    for (const ts of times) {
+        const queue = rafQueue;
+        rafQueue = [];
+        queue.forEach((cb: any) => cb(ts));
+    }
+}
+
+function decodeInts(enc: string, data: string): number[] {
+    // decodeRows cuts into rows of 8; joined back, the last row's short tail is still every value.
+    return decodeRows(enc, data).reduce((a: number[], r) => a.concat(r), []);
 }
 
 function fromParent(parent: any, origin: string, data: any): void {
@@ -409,6 +424,175 @@ describe('encoding', () => {
     });
 });
 
+// ---- what a replay needs: the frame times the game saw, its loads, and its crypto values ----
+
+describe('replay records', () => {
+    it("records each frame's requestAnimationFrame time, not the SDK's own clock", async () => {
+        const parent = makeParent();
+        const sdk = await load(v2Query(nextOrigin()));
+        const start = performance.now();
+        framesAt([start + 16.667, start + 33.334, start + 50.1]);
+        sdk.gameOver(1);
+        const [message] = await waitForGameOver(parent);
+        const t = message.payload.timing.frameTime;
+        expect(t.unit).toBe('1us');
+        const values = decodeInts(t.enc, t.data);
+        expect(values).toHaveLength(3);
+        // The first against the session's start (taken at load, just before `start`), the rest frame to frame, in µs.
+        expect(values[0]).toBeGreaterThanOrEqual(16667);
+        expect(values[0]).toBeLessThan(16667 + 50000);
+        expect(values.slice(1)).toEqual([16667, 16766]);
+    });
+
+    it('notes when the game first read performance.now in each frame', async () => {
+        const parent = makeParent();
+        const sdk = await load(v2Query(nextOrigin()));
+        const start = performance.now();
+        rafQueue.push(() => { performance.now(); performance.now(); });
+        framesAt([start + 16]);
+        framesAt([start + 32]); // the game read nothing this frame
+        sdk.gameOver(1);
+        const [message] = await waitForGameOver(parent);
+        const n = message.payload.timing.frameNow;
+        const values = decodeInts(n.enc, n.data);
+        expect(values).toHaveLength(2);
+        // A real reading (here before the made-up frame time; in a browser just after it), then none.
+        expect(values[0]).not.toBe(NOT_READ);
+        expect(Math.abs(values[0])).toBeLessThan(60000);
+        expect(values[1]).toBe(NOT_READ);
+    });
+
+    it('counts the timer callbacks that ran before each frame', async () => {
+        const parent = makeParent();
+        const sdk = await load(v2Query(nextOrigin()));
+        let ran = 0;
+        setTimeout(() => { ran++; }, 0);
+        setTimeout(() => { ran++; }, 0);
+        await new Promise((r) => setTimeout(r, 20));
+        frames(1); // the two timers (and the wait's own) ran before this frame
+        frames(1); // none before this one
+        expect(ran).toBe(2);
+        sdk.gameOver(1);
+        const [message] = await waitForGameOver(parent);
+        const t = message.payload.timing.frameTimers;
+        expect(decodeInts(t.enc, t.data)).toEqual([3, 0]);
+    });
+
+    it('records what crypto returned without changing it', async () => {
+        const parent = makeParent();
+        const sdk = await load(v2Query(nextOrigin()));
+        const bytes = new Uint8Array(6);
+        const returned = window.crypto.getRandomValues(bytes);
+        expect(returned).toBe(bytes);
+        const words = new Uint32Array(2);
+        window.crypto.getRandomValues(words);
+        sdk.gameOver(1);
+        const [message] = await waitForGameOver(parent);
+        const c = message.payload.rng.crypto;
+        expect(c.calls).toBe(2);
+        expect(c.truncated).toBe(false);
+        const ints = decodeInts(c.enc, c.data);
+        // [call kind, array type, length, values...]: 1 = Uint8Array, 6 = Uint32Array (words kept as int32).
+        expect(ints).toEqual([0, 1, 6, ...Array.from(bytes), 0, 6, 2, words[0] | 0, words[1] | 0]);
+    });
+
+    it('watches an image loaded from code, never added to the page', async () => {
+        const parent = makeParent();
+        const sdk = await load(v2Query(nextOrigin()));
+        const img = new Image();
+        img.src = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+        frames(2);
+        img.dispatchEvent(new Event('load'));
+        sdk.gameOver(1);
+        const [message] = await waitForGameOver(parent);
+        const rows = decodeRows(message.payload.inputs.enc, message.payload.inputs.data).filter((r) => r[2] === ROW.LOAD);
+        expect(rows.map((r) => [r[1], r[3], r[4]])).toEqual([[2, LOAD.IMAGE, 0]]);
+        expect(img.src).toContain('data:image/gif');
+    });
+
+    it('marks each finished load with the frame it came on and what is still pending', async () => {
+        const resolvers: Array<(v: any) => void> = [];
+        (window as any).fetch = jest.fn(() => new Promise((r) => resolvers.push(r)));
+        const parent = makeParent();
+        const sdk = await load(v2Query(nextOrigin()));
+        const a = (window as any).fetch('a.png');
+        const b = (window as any).fetch('b.json');
+        frames(3);
+        resolvers[0]('first');
+        await a;
+        frames(2);
+        resolvers[1]('second');
+        expect(await b).toBe('second');
+        sdk.gameOver(1);
+        const [message] = await waitForGameOver(parent);
+        const rows = decodeRows(message.payload.inputs.enc, message.payload.inputs.data).filter((r) => r[2] === ROW.LOAD);
+        // [frames since the row before, kind, still pending]
+        expect(rows.map((r) => [r[1], r[3], r[4]])).toEqual([[3, LOAD.FETCH, 1], [2, LOAD.FETCH, 0]]);
+        delete (window as any).fetch;
+    });
+
+    it('keys each load by its URL and notes the timers that ran before it', async () => {
+        const resolvers: Array<(v: any) => void> = [];
+        (window as any).fetch = jest.fn(() => new Promise((r) => resolvers.push(r)));
+        const parent = makeParent();
+        const sdk = await load(v2Query(nextOrigin()));
+        const a = (window as any).fetch('https://cdn.test/a.json');
+        frames(1);
+        setTimeout(() => undefined, 0);
+        await new Promise((r) => setTimeout(r, 20));
+        resolvers[0]({ url: 'https://cdn.test/a.json' });
+        await a;
+        sdk.gameOver(1);
+        const [message] = await waitForGameOver(parent);
+        const rows = decodeRows(message.payload.inputs.enc, message.payload.inputs.data).filter((r) => r[2] === ROW.LOAD);
+        // pid: timer callbacks run since the frame began (ours and the wait's own)
+        expect(rows.map((r) => [r[3], r[5]])).toEqual([[LOAD.FETCH, 2]]);
+        const keys = message.payload.timing.loadKey;
+        expect(decodeInts(keys.enc, keys.data)).toEqual([urlKey('https://cdn.test/a.json')]);
+        const times = message.payload.timing.loadTime;
+        expect(decodeInts(times.enc, times.data)).toHaveLength(1);
+        delete (window as any).fetch;
+    });
+
+    it('records every Date and performance.now the game reads, frame by frame, unchanged', async () => {
+        const parent = makeParent();
+        const sdk = await load(v2Query(nextOrigin()));
+        frames(1);
+        const before = Date.now();
+        const d = new Date();
+        expect(d instanceof Date).toBe(true);
+        expect(d.getTime()).toBeGreaterThanOrEqual(before);
+        expect(new Date(0).getTime()).toBe(0);
+        performance.now();
+        frames(1);
+        performance.now();
+        sdk.gameOver(1);
+        const [message] = await waitForGameOver(parent);
+        const timing = message.payload.timing;
+        // Two Date reads (Date.now and new Date()) before the second frame; new Date(0) is not a clock read.
+        expect(decodeInts(timing.frameDateReads.enc, timing.frameDateReads.data)).toEqual([0, 2]);
+        const dates = decodeInts(timing.dateRead.enc, timing.dateRead.data);
+        expect(dates[0]).toBe(before - timing.dateStartMs);
+        expect(decodeInts(timing.frameReads.enc, timing.frameReads.data)).toEqual([0, 1]);
+        expect(decodeInts(timing.nowRead.enc, timing.nowRead.data)).toHaveLength(2);
+    });
+
+    it('records each input exactly: when the game had it and where, as float32', async () => {
+        const parent = makeParent();
+        const sdk = await load(v2Query(nextOrigin()));
+        frames(1);
+        const e: any = new Event('pointerdown');
+        Object.assign(e, { pointerId: 1, pointerType: 'touch', clientX: 189.1848907470703, clientY: 375.9058837890625, isPrimary: true });
+        window.dispatchEvent(e);
+        sdk.gameOver(1);
+        const [message] = await waitForGameOver(parent);
+        const exact = message.payload.inputs.exact;
+        const ints = decodeInts(exact.enc, exact.data);
+        expect(ints.slice(1)).toEqual([float32Bits(189.1848907470703), float32Bits(375.9058837890625)]);
+        expect(new Float32Array(new Int32Array([ints[1]]).buffer)[0]).toBe(189.1848907470703);
+    });
+});
+
 // ---- the contract file the Python service tests against ----
 
 const FIXTURE = path.join(__dirname, '..', 'fixtures', 'v2-contract.json');
@@ -435,10 +619,32 @@ function buildContract(): any {
         [3100, 0, ROW.PAGE_VISIBLE, 0, 0, 0, 3, 1],
         [10, 1, ROW.PAUSE, 0, 0, 1, 3, 1],
         [2000, 120, ROW.RESUME, 0, 0, 1, 3, 1],
+        [12, 1, ROW.LOAD, LOAD.BITMAP, 2, 0, 3, 1],
     ];
     const flat = rows.reduce((a: number[], r) => a.concat(r), []);
     const raw = toVarintBytes(flat);
     const btoaNode = (s: string) => Buffer.from(s, 'binary').toString('base64');
+    const plainInts = (ints: number[]) => ({ enc: ENC_PLAIN, data: toBase64(toVarintBytes(ints), btoaNode) });
+    // A frame time stream (µs: the first against the session's start) and a crypto record, as a game over carries them.
+    const frameTime = [-1520, 16667, 16666, 16834, 33333];
+    const frameNow = [210, -2147483648, 95, 0];
+    const frameTimers = [0, 2, 0, 1];
+    const crypto = [0, 1, 4, 0, 255, 17, 128, 0, 6, 1, 4294967295 | 0, 1, 6, 4, 0x1b4e28ba | 0, 0x2fa111d2 | 0, 0x883f0016 | 0, 0x2b26d9fd | 0];
+    // µs after the frame before: timer callbacks, loads, and every performance.now the game read (with per-frame counts).
+    const timerTime = [9400, 1300, 16600];
+    const loadTime = [76600, 11800, -350];
+    const nowRead = [27200, 1100, 1350, 16900];
+    const frameReads = [1, 0, 3];
+    // Date reads in ms after dateStartMs, audio clock reads in sample frames.
+    const dateRead = [0, 6, 7, 7, 1000];
+    const frameDateReads = [1, 0, 4];
+    const audioRead = [0, 41280, 41280, 312064];
+    const frameAudioReads = [0, 1, 3];
+    // Per input row: timeStamp µs after the frame before, clientX and clientY as float32 bits.
+    const inputExact = [7200, float32Bits(189.1848907470703), float32Bits(375.9058837890625), -150, float32Bits(0.5), float32Bits(-1)];
+    const urls = ['https://games.gogames.io/en/boat-rush/media/coinsound.ogg', 'https://games.gogames.io/en/a/b.png#frag', '',
+        'data:image/png;base64,AAAA', 'https://example.test/caf\u00e9/\ud83c\udfae.png?x=1'];
+    const coords = [189.1848907470703, 375.9058837890625, 0, -1, 0.1, 1234.5678, 1e-7];
 
     const multipliers = [1.5, 2, 1.1, 1.25, 3, 0.5, 1.15];
     const raws = [0, 1, 3, 5, 7, 101, 333, 999, 12345, 999999];
@@ -450,6 +656,7 @@ function buildContract(): any {
         sdkVersion: '2.0.0',
         fields: ['dt', 'df', 'type', 'x', 'y', 'pid', 'ptype', 'flags'],
         rowTypes: ROW,
+        loadKinds: LOAD,
         rng: streams,
         zigzag: [0, -1, 1, -2, 2, 2147483647, -2147483648].map((n) => ({ n, zz: zz(n) >>> 0 })),
         diary: {
@@ -458,6 +665,27 @@ function buildContract(): any {
             deflate: { enc: ENC_DEFLATE, data: zlib.deflateRawSync(Buffer.from(raw)).toString('base64') },
         },
         rewardedAdRounding: rounding,
+        replay: {
+            frameTime: { values: frameTime, ...plainInts(frameTime) },
+            frameNow: { values: frameNow, ...plainInts(frameNow) },
+            frameTimers: { values: frameTimers, ...plainInts(frameTimers) },
+            crypto: { values: crypto, ...plainInts(crypto) },
+            timerTime: { values: timerTime, ...plainInts(timerTime) },
+            loadTime: { values: loadTime, ...plainInts(loadTime) },
+            nowRead: { values: nowRead, ...plainInts(nowRead) },
+            frameReads: { values: frameReads, ...plainInts(frameReads) },
+            dateRead: { values: dateRead, ...plainInts(dateRead) },
+            frameDateReads: { values: frameDateReads, ...plainInts(frameDateReads) },
+            audioRead: { values: audioRead, rate: 96000, ...plainInts(audioRead) },
+            frameAudioReads: { values: frameAudioReads, ...plainInts(frameAudioReads) },
+            inputExact: { values: inputExact, ...plainInts(inputExact) },
+        },
+        urlKeys: urls.map((url) => ({ url, key: urlKey(url) })),
+        float32: coords.map((v) => {
+            const bits = float32Bits(v);
+            const f = new Float32Array(new Int32Array([bits]).buffer)[0];
+            return { v, bits, value: f, ...plainInts([0, bits, 0]) };
+        }),
     };
 }
 

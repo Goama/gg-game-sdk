@@ -6,6 +6,11 @@
  * the session was reseeded by GG_NEW_SESSION (play again without a reload).
  * Its x holds how many Math.random draws the game made between the previous
  * game over and the reseed, which a replay needs to line the streams up.
+ * 16 is new too: something the game loaded finished (a fetch, its body, an
+ * XHR, an image, a bitmap or audio decode, a font). x is what kind (LOAD
+ * below), y how many loads were still pending, pid how many timer callbacks
+ * had run since the frame began. A replay lines its loading up on the frames
+ * these came on, between the same timers.
  */
 
 export const FIELDS = ['dt', 'df', 'type', 'x', 'y', 'pid', 'ptype', 'flags'];
@@ -27,7 +32,11 @@ export const ROW = {
     PAUSE: 13,
     RESUME: 14,
     RESEED: 15,
+    LOAD: 16,
 };
+
+/** What a LOAD row's x says finished. */
+export const LOAD = { FETCH: 0, BODY: 1, XHR: 2, IMAGE: 3, BITMAP: 4, IMAGE_DECODE: 5, AUDIO_DECODE: 6, FONT: 7, MEDIA: 8, SCRIPT: 9, STYLE: 10, AUDIO_RESUME: 11 };
 
 export const PTYPE = { mouse: 0, touch: 1, pen: 2, none: 3 };
 

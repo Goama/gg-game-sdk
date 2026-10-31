@@ -27,7 +27,22 @@
     "PAGE_VISIBLE": 12,
     "PAUSE": 13,
     "RESUME": 14,
-    "RESEED": 15
+    "RESEED": 15,
+    "LOAD": 16
+  },
+  "loadKinds": {
+    "FETCH": 0,
+    "BODY": 1,
+    "XHR": 2,
+    "IMAGE": 3,
+    "BITMAP": 4,
+    "IMAGE_DECODE": 5,
+    "AUDIO_DECODE": 6,
+    "FONT": 7,
+    "MEDIA": 8,
+    "SCRIPT": 9,
+    "STYLE": 10,
+    "AUDIO_RESUME": 11
   },
   "rng": [
     {
@@ -312,15 +327,25 @@
         1,
         3,
         1
+      ],
+      [
+        12,
+        1,
+        16,
+        4,
+        2,
+        0,
+        3,
+        1
       ]
     ],
     "plain": {
       "enc": "zz-varint+base64",
-      "data": "AAAeBgAABgL0EpABAJBO2IEBAAIWIAIEqE7EgQEAAha+AQwCqE7EgQEAAgagBjAIAAAABgKgAQoIAAAABgoGAAyfnAEAAAACKAIA8wPAogECAATQD3gSmA2MBgIGAgoAFgAAAAYCuDAAGAAAAAYCFAIaAAACBgKgH/ABHAAAAgYC"
+      "data": "AAAeBgAABgL0EpABAJBO2IEBAAIWIAIEqE7EgQEAAha+AQwCqE7EgQEAAgagBjAIAAAABgKgAQoIAAAABgoGAAyfnAEAAAACKAIA8wPAogECAATQD3gSmA2MBgIGAgoAFgAAAAYCuDAAGAAAAAYCFAIaAAACBgKgH/ABHAAAAgYCGAIgCAQABgI="
     },
     "deflate": {
       "enc": "zz-varint+deflate+base64",
-      "data": "Y2CQY2NgYGP6IjSBkWGC341GRgYmMQUmlhV+R8DMfYw8TFA22wI2Aw4GkOIFjFxgBhcbA8/8OYwMDAxMGkwMn5kPLGJkYmC5wF8hNIO3h42JjYmLQQysYYcBgwSYIcIkxcDAxMa0QP4DowyYBQA="
+      "data": "Y2CQY2NgYGP6IjSBkWGC341GRgYmMQUmlhV+R8DMfYw8TFA22wI2Aw4GkOIFjFxgBhcbA8/8OYwMDAxMGkwMn5kPLGJkYmC5wF8hNIO3h42JjYmLQQysYYcBgwSYIcIkxcDAxMa0QP4DowyYJcGkwMHCwMYEAA=="
     }
   },
   "rewardedAdRounding": [
@@ -673,6 +698,225 @@
       "incrementScore": 1.15,
       "raw": 999999,
       "expected": 1149999
+    }
+  ],
+  "replay": {
+    "frameTime": {
+      "values": [
+        -1520,
+        16667,
+        16666,
+        16834,
+        33333
+      ],
+      "enc": "zz-varint+base64",
+      "data": "3xe2hAK0hAKEhwLqiAQ="
+    },
+    "frameNow": {
+      "values": [
+        210,
+        -2147483648,
+        95,
+        0
+      ],
+      "enc": "zz-varint+base64",
+      "data": "pAP/////D74BAA=="
+    },
+    "frameTimers": {
+      "values": [
+        0,
+        2,
+        0,
+        1
+      ],
+      "enc": "zz-varint+base64",
+      "data": "AAQAAg=="
+    },
+    "crypto": {
+      "values": [
+        0,
+        1,
+        4,
+        0,
+        255,
+        17,
+        128,
+        0,
+        6,
+        1,
+        -1,
+        1,
+        6,
+        4,
+        458107066,
+        799085010,
+        -2009137130,
+        723966461
+      ],
+      "enc": "zz-varint+base64",
+      "data": "AAIIAP4DIoACAAwCAQIMCPSi8bQDpMeI+gXT/4f8DvrntrIF"
+    },
+    "timerTime": {
+      "values": [
+        9400,
+        1300,
+        16600
+      ],
+      "enc": "zz-varint+base64",
+      "data": "8JIBqBSwgwI="
+    },
+    "loadTime": {
+      "values": [
+        76600,
+        11800,
+        -350
+      ],
+      "enc": "zz-varint+base64",
+      "data": "8KwJsLgBuwU="
+    },
+    "nowRead": {
+      "values": [
+        27200,
+        1100,
+        1350,
+        16900
+      ],
+      "enc": "zz-varint+base64",
+      "data": "gKkDmBGMFYiIAg=="
+    },
+    "frameReads": {
+      "values": [
+        1,
+        0,
+        3
+      ],
+      "enc": "zz-varint+base64",
+      "data": "AgAG"
+    },
+    "dateRead": {
+      "values": [
+        0,
+        6,
+        7,
+        7,
+        1000
+      ],
+      "enc": "zz-varint+base64",
+      "data": "AAwODtAP"
+    },
+    "frameDateReads": {
+      "values": [
+        1,
+        0,
+        4
+      ],
+      "enc": "zz-varint+base64",
+      "data": "AgAI"
+    },
+    "audioRead": {
+      "values": [
+        0,
+        41280,
+        41280,
+        312064
+      ],
+      "rate": 96000,
+      "enc": "zz-varint+base64",
+      "data": "AICFBYCFBYCMJg=="
+    },
+    "frameAudioReads": {
+      "values": [
+        0,
+        1,
+        3
+      ],
+      "enc": "zz-varint+base64",
+      "data": "AAIG"
+    },
+    "inputExact": {
+      "values": [
+        7200,
+        1128083285,
+        1136391156,
+        -150,
+        1056964608,
+        -1082130432
+      ],
+      "enc": "zz-varint+base64",
+      "data": "wHCqvemzCOjP37sIqwKAgIDwB////4cI"
+    }
+  },
+  "urlKeys": [
+    {
+      "url": "https://games.gogames.io/en/boat-rush/media/coinsound.ogg",
+      "key": 817691839
+    },
+    {
+      "url": "https://games.gogames.io/en/a/b.png#frag",
+      "key": -429623274
+    },
+    {
+      "url": "",
+      "key": -2128831035
+    },
+    {
+      "url": "data:image/png;base64,AAAA",
+      "key": 216306060
+    },
+    {
+      "url": "https://example.test/café/🎮.png?x=1",
+      "key": -2022354487
+    }
+  ],
+  "float32": [
+    {
+      "v": 189.1848907470703,
+      "bits": 1128083285,
+      "value": 189.1848907470703,
+      "enc": "zz-varint+base64",
+      "data": "AKq96bMIAA=="
+    },
+    {
+      "v": 375.9058837890625,
+      "bits": 1136391156,
+      "value": 375.9058837890625,
+      "enc": "zz-varint+base64",
+      "data": "AOjP37sIAA=="
+    },
+    {
+      "v": 0,
+      "bits": 0,
+      "value": 0,
+      "enc": "zz-varint+base64",
+      "data": "AAAA"
+    },
+    {
+      "v": -1,
+      "bits": -1082130432,
+      "value": -1,
+      "enc": "zz-varint+base64",
+      "data": "AP///4cIAA=="
+    },
+    {
+      "v": 0.1,
+      "bits": 1036831949,
+      "value": 0.10000000149011612,
+      "enc": "zz-varint+base64",
+      "data": "AJqz5twHAA=="
+    },
+    {
+      "v": 1234.5678,
+      "bits": 1150964267,
+      "value": 1234.5677490234375,
+      "enc": "zz-varint+base64",
+      "data": "ANbI0skIAA=="
+    },
+    {
+      "v": 1e-7,
+      "bits": 869711765,
+      "value": 1.0000000116860974e-7,
+      "enc": "zz-varint+base64",
+      "data": "AKr+tb0GAA=="
     }
   ]
 }
