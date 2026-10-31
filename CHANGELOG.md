@@ -1,3 +1,8 @@
+## v1.4.0 - 2026-10-31
+
+### Changes
+- Version bump to v1.4.0
+
 ## Unreleased (v2.0.0)
 
 ### Added
