@@ -241,16 +241,21 @@ describe('with valid v2 params', () => {
         expect(rows[1][1]).toBe(1); // the move landed one frame after the tap
     });
 
-    it('compresses with deflate-raw when CompressionStream exists', async () => {
-        (window as any).CompressionStream = require('stream/web').CompressionStream;
+    it('compresses with deflate-raw when CompressionStream has it, else sends it plain', async () => {
+        const CS = require('stream/web').CompressionStream;
+        (window as any).CompressionStream = CS;
+        // Node added deflate-raw in 21.2; on older Node the SDK must fall back to plain, as an old browser would.
+        let hasDeflateRaw = true;
+        try { new CS('deflate-raw'); } catch { hasDeflateRaw = false; }
+        const expected = hasDeflateRaw ? ENC_DEFLATE : ENC_PLAIN;
         const parent = makeParent();
         const sdk = await load(v2Query(nextOrigin()));
         const canvas = addCanvas();
         for (let i = 0; i < 50; i++) { pointer(canvas, 'pointerdown', 10 * i, 300); pointer(canvas, 'pointerup', 10 * i, 300); }
         sdk.gameOver(50);
         const [message] = await waitForGameOver(parent);
-        expect(message.payload.inputs.enc).toBe(ENC_DEFLATE);
-        expect(message.payload.timing.frameDt.enc).toBe(ENC_DEFLATE);
+        expect(message.payload.inputs.enc).toBe(expected);
+        expect(message.payload.timing.frameDt.enc).toBe(expected);
         const rows = decodeRows(message.payload.inputs.enc, message.payload.inputs.data);
         expect(rows).toHaveLength(100);
         expect(rows[98][3]).toBe(Math.round(490 / 400 * 10000));
