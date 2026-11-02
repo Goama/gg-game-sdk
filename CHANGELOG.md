@@ -1,3 +1,8 @@
+## v1.4.1 - 2026-11-02
+
+### Changes
+- Version bump to v1.4.1
+
 ## v1.4.0 - 2026-10-31
 
 ### Changes
