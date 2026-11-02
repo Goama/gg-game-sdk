@@ -23,6 +23,7 @@ permissions:
   contents: write
   packages: write
   pull-requests: write
+  id-token: write  # npm trusted publishing: npm checks GitHub's OIDC token instead of an NPM_TOKEN
 
 jobs:
   release:
@@ -38,8 +39,13 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18.x'
+        # Trusted publishing needs Node 22.14+ and npm 11.5.1+.
+        node-version: '24.x'
         cache: 'npm'
+        registry-url: 'https://registry.npmjs.org'
+
+    - name: Update npm for trusted publishing
+      run: npm install -g npm@^11.5.1
         
     - name: Install dependencies
       run: npm ci
@@ -117,10 +123,6 @@ jobs:
         prerelease: ${{ github.event.inputs.version_type == 'prerelease' }}
         token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Setup NPM authentication
-      run: |
-        echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
-        
     - name: Publish to NPM
       run: |
         if [ "${{ github.event.inputs.version_type }}" = "prerelease" ]; then
@@ -130,8 +132,6 @@ jobs:
           echo "Publishing stable release to NPM..."
           npm publish
         fi
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         
     - name: Publish success notification
       run: |
